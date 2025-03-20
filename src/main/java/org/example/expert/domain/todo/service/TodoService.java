@@ -3,10 +3,12 @@ package org.example.expert.domain.todo.service;
 import lombok.RequiredArgsConstructor;
 import org.example.expert.client.WeatherClient;
 import org.example.expert.domain.common.dto.AuthUser;
+import org.example.expert.domain.common.dto.TimeRange;
 import org.example.expert.domain.common.exception.InvalidRequestException;
 import org.example.expert.domain.todo.dto.request.TodoSaveRequest;
 import org.example.expert.domain.todo.dto.response.TodoResponse;
 import org.example.expert.domain.todo.dto.response.TodoSaveResponse;
+import org.example.expert.domain.todo.dto.response.TodoSearchResponseDto;
 import org.example.expert.domain.todo.entity.Todo;
 import org.example.expert.domain.todo.repository.TodoRepository;
 import org.example.expert.domain.user.dto.response.UserResponse;
@@ -14,12 +16,15 @@ import org.example.expert.domain.user.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -53,12 +58,10 @@ public class TodoService {
 
     public Page<TodoResponse> getTodos(int page, int size, String weather, LocalDate startedAt, LocalDate endedAt) {
         Pageable pageable = PageRequest.of(page - 1, size);
-        LocalDateTime startedAtWithTime = startedAt != null ? LocalDateTime.of(startedAt, LocalTime.MIN)
-                : LocalDateTime.of(1900, 1, 1, 0, 0);;
-        LocalDateTime endedAtWithTime = endedAt != null ? LocalDateTime.of(endedAt, LocalTime.MAX)
-                : LocalDateTime.of(9999,12,31, 23, 59, 59);
 
-        Page<Todo> todos = todoRepository.findAllByOrderByModifiedAtDesc(weather, startedAtWithTime, endedAtWithTime, pageable);
+        TimeRange timeRange = TimeRange.of(startedAt, endedAt);
+
+        Page<Todo> todos = todoRepository.findAllByOrderByModifiedAtDesc(weather, timeRange.getStartedAtWithTime(), timeRange.getEndedAtWithTime(), pageable);
 
         return todos.map(todo -> new TodoResponse(
                 todo.getId(),
@@ -86,5 +89,15 @@ public class TodoService {
                 todo.getCreatedAt(),
                 todo.getModifiedAt()
         );
+    }
+
+    public Page<TodoSearchResponseDto> searchTodos(int page, int size, String title, String nickname, LocalDate startedAt, LocalDate endedAt) {
+        Sort sort = Sort.by("createdAt").ascending();
+        Pageable pageable = PageRequest.of(page - 1, size, sort);
+
+        TimeRange timeRange = TimeRange.of(startedAt, endedAt);
+
+        List<TodoSearchResponseDto> result = todoRepository.findAllByTitleAndNicknameAndDate(title, nickname, timeRange, pageable);
+        return PageableExecutionUtils.getPage(result, pageable, result::size);
     }
 }
